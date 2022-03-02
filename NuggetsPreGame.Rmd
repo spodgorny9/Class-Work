@@ -1,0 +1,634 @@
+---
+title: "Denver Nuggets Pregame vs. Phoenix Suns"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(lubridate)
+library(gganimate)
+library(nbastatR)
+library(grid)
+library(hexbin)
+library(dplyr)
+library(broom)
+library(teamcolors)
+library(knitr)
+library(kableExtra)
+library(plotly)
+theme_set(theme_bw())
+```
+
+```{r, warning = F, message = F, include=FALSE}
+denGames <- dplyr::bind_rows(
+  nbastatR::teams_shots(teams = "Denver Nuggets", seasons = 2020),
+  nbastatR::teams_shots(teams = "Denver Nuggets", seasons = 2021))
+
+phxGames <- dplyr::bind_rows(
+  nbastatR::teams_shots(teams = "Phoenix Suns", seasons = 2020),
+  nbastatR::teams_shots(teams = "Phoenix Suns", seasons = 2021))
+
+court <- grid::rasterGrob(jpeg::readJPEG("/Users/slaterpodgorny/Desktop/nba_court.jpeg"), 
+                          width = unit(1, "npc"),
+                          height = unit(1, "npc"))
+
+games <- readRDS("/Users/slaterpodgorny/Desktop/Sports Stats/nba-games-2021-Updated1.rds")
+ff <- readRDS("~/Desktop/Sports Stats/four-factors-team-end-2021.rds")
+advanced <- readRDS("~/Desktop/Sports Stats/advanced-team-end-2021.rds")
+
+nugsGames <- games %>% 
+  filter(slugTeam=="DEN")
+opponent <- "PHX"
+prevMatchups<- nugsGames %>% 
+  filter(., slugOpponent == opponent)
+#select(prevMatchups, idGame)
+
+gameIDs <- prevMatchups %>% 
+  select(., idGame)
+
+denPlayers <- nbastatR::bref_players_stats(seasons = 2021) %>% 
+  filter(slugTeamBREF == "DEN")
+
+phxPlayers <- nbastatR::bref_players_stats(seasons = 2021) %>% 
+  filter(slugTeamBREF == "PHO")
+```
+
+Stat Leaders {data-orientation=columns}
+=======================================================================
+Stat leaders{data-width=650}
+-----------------------------------------------------------------------
+
+### Stat Leaders
+Points
+```{r}
+#Nuggets basic Stats
+denStats <- denPlayers %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(ptsPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, points= round(ptsPerGame,2)) #, round(rbsPerGame,2), round(astPerGame,2))
+#Suns basic Stats
+phxStats <- phxPlayers %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(ptsPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, points= round(ptsPerGame,2))
+
+scoringleaders<- bind_rows(head(denStats, 1), head(phxStats,1))
+
+scoringleaders%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Rebounds
+```{r}
+rbsNugs <- denPlayers %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(ptsPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, rebounds= round(rbsPerGame,2))
+
+rbsSuns<- phxPlayers %>% 
+  filter(namePlayer == "Deandre Ayton") %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(ptsPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, rebounds= round(rbsPerGame,2))  
+  
+
+rbsleaders<- bind_rows(head(rbsNugs, 1), head(rbsSuns,1))
+
+rbsleaders%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+
+```
+
+Assists
+```{r}
+asNugs <- denPlayers %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(astPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, assists = round(astPerGame,2))
+
+asSuns<- phxPlayers %>% 
+  #filter(namePlayer == "Deandre Ayton") %>% 
+  mutate(ptsPerGame = ptsTotals/countGames, rbsPerGame = trbTotals/countGames, astPerGame = astTotals/countGames) %>% 
+  dplyr::arrange(desc(astPerGame)) %>% 
+  summarize(., team = slugTeamBREF, player = namePlayer, position = groupPosition, assists=round(astPerGame,2))  
+  
+
+astleaders<- bind_rows(head(asNugs, 1), head(asSuns,1))
+
+astleaders%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Nikola Jokic Shot chart 
+
+```{r}
+## Jokic Shot Chart 
+denplayer <- "Nikola Jokic"
+p <- ggplot(data = filter(denGames, namePlayer == denplayer),
+            aes(x = -locationX, y = locationY, col = zoneBasic))
+p + annotation_custom(court, -250, 250, -50, 420) +
+  geom_point(alpha = .25) +
+  scale_color_brewer("Zone", palette = "Dark2") +
+  coord_fixed() +
+  scale_x_continuous("", breaks = NULL, limits = c(-250, 250)) +
+  scale_y_continuous("", breaks = NULL, limits = c(-50, 420)) 
+```
+
+### Devin Booker Shot Chart 
+
+```{r}
+sunsplayer <- "Devin Booker"
+p <- ggplot(data = filter(phxGames, namePlayer == sunsplayer),
+            aes(x = -locationX, y = locationY, col = zoneBasic))
+p + annotation_custom(court, -250, 250, -50, 420) +
+  geom_point(alpha = .25) +
+  scale_color_brewer("Zone", palette = "Dark2") +
+  coord_fixed() +
+  scale_x_continuous("", breaks = NULL, limits = c(-250, 250)) +
+  scale_y_continuous("", breaks = NULL, limits = c(-50, 420)) 
+```
+
+
+Effective Field Goal {data-navmenu="Four Factors"}
+======================================================================= 
+### **Effective Field Goal Percentage:** The Denver Nuggets season average Effective Field Goal Percentage of 55.88 falls behind the Suns rating of 56.53.
+```{r, message =F, warning=F}
+df_merge <- merge(games, advanced)
+df_merge<- merge(df_merge, ff) %>% 
+  dplyr::mutate(., ftr = ftaTeam/fgaTeam)
+
+currTeamsEFG <- advanced %>% 
+  filter(., slugTeam %in% c("PHX", "DEN")) %>% 
+  group_by(slugTeam) %>% 
+  summarize(., pctEFG = mean(pctEFG))
+
+
+p <- ggplot(data = advanced,
+            aes(x = pctEFG))
+p + geom_density() +
+  geom_vline(data = currTeamsEFG,
+             aes(xintercept = pctEFG, col = slugTeam)) +
+  scale_color_brewer("team", palette = "Set1") +
+  labs(x = "Efective Field Goal Percentage", 
+       y = "density") +
+  theme_bw()
+```
+ 
+
+Offensive Rebounds {data-navmenu="Four Factors"}
+======================================================================= 
+### **Offensive Rebounds:** The Denver Nuggets season average Offensive Rebound Percentage of 28.86 exceeds the Suns rating of 24.57.
+```{r}
+currTeamsOREB <- advanced %>% 
+  filter(., slugTeam %in% c("PHX", "DEN")) %>% 
+  group_by(slugTeam) %>% 
+  summarize(., pctOREB = mean(pctOREB))
+
+
+p <- ggplot(data = advanced,
+            aes(x = pctOREB))
+p + geom_density() +
+  geom_vline(data = currTeamsOREB,
+             aes(xintercept = pctOREB, col = slugTeam)) +
+  scale_color_brewer("team", palette = "Set1") +
+    labs(x = "Offensive Rebound Percentage", 
+       y = "density") +
+  theme_bw()
+```
+
+
+Turnovers {data-navmenu="Four Factors"}
+======================================================================= 
+### **Turnover Percentage:** The Denver Nuggets season average Turnover Percentage of 13.58 exceeds the Suns rating of 12.57.
+```{r}
+currTeamsTOV<- advanced %>% 
+  filter(., slugTeam %in% c("PHX", "DEN")) %>% 
+  group_by(slugTeam) %>% 
+  summarize(., pctTOV=mean(pctTOVTeam))
+
+
+p <- ggplot(data = advanced,
+            aes(x = pctTOVTeam))
+p + geom_density() +
+  geom_vline(data = currTeamsTOV,
+             aes(xintercept = pctTOV, col = slugTeam)) +
+  scale_color_brewer("team", palette = "Set1") +
+    labs(x = "Turnover Percentage", 
+       y = "density") +
+  theme_bw()
+```
+
+Free Throw Attempts{data-navmenu="Four Factors"}
+======================================================================= 
+### **Free Throw Rate:** The Denver Nuggets season average Free Throw Rate of 22.1 exceeds the Suns rating of 21.67.
+```{r}
+currTeamsFTR<- df_merge %>% 
+  filter(., slugTeam %in% c("PHX", "DEN")) %>% 
+  group_by(slugTeam) %>% 
+  summarize(., FTR = mean(ftr))
+
+p <- ggplot(data = df_merge,
+            aes(x = ftr))
+p + geom_density() +
+  geom_vline(data = currTeamsFTR,
+             aes(xintercept = FTR , col = slugTeam)) +
+  scale_color_brewer("team", palette = "Set1") +
+    labs(x = "Free Throw Rate", 
+       y = "density") +
+  theme_bw()
+```
+
+Four Factors {data-navmenu="Previous Matchups"}
+=======================================================================
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+#### Effective Field Goal Percentage
+```{r}
+#Wins 
+prevDataFF <- merge(prevMatchups,df_merge) %>% 
+  dplyr::select(., pctEFG, pctOREB, pctTOVTeam, rateFTA, outcomeGame) #%>% 
+  #dplyr::mutate(.,pctTOVTeam = pctTOVTeam/100)
+
+p <- ggplot(data = advanced,
+            aes(x = pctEFG))
+p + geom_density() +
+  geom_vline(data = prevDataFF,
+             aes(xintercept = pctEFG, col = outcomeGame)) +
+  scale_color_brewer("team", palette = "Set1")  +
+    labs(x = "Effective Field Goal Percentage", 
+       y = "density") +
+  theme_bw()
+
+
+```
+
+
+#### Turnover Percentage
+```{r}
+p <- ggplot(data = advanced,
+            aes(x = pctTOVTeam))
+p + geom_density() +
+  geom_vline(data = prevDataFF,
+             aes(xintercept = pctTOVTeam, col = outcomeGame)) +
+  scale_color_brewer("team", palette = "Set1")  +
+    labs(x = "Turnover Percentage", 
+       y = "density") +
+  theme_bw()
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+#### Offensive Rebounding Percentage
+```{r}
+p <- ggplot(data = advanced,
+            aes(x = pctOREB))
+p + geom_density() +
+  geom_vline(data = prevDataFF,
+             aes(xintercept = pctOREB, col = outcomeGame)) +
+  scale_color_brewer("team", palette = "Set1") +
+    labs(x = "Offensive Rebounding Percentage", 
+       y = "density") +
+  theme_bw()
+```
+
+
+#### Freethrow Rate
+```{r}
+p <- ggplot(data = df_merge,
+            aes(x = ftr))
+p + geom_density() +
+  geom_vline(data = prevDataFF,
+             aes(xintercept = rateFTA, col = outcomeGame)) +
+  scale_color_brewer("team", palette = "Set1") +
+    labs(x = "Free Throw Rate", 
+       y = "density") +
+  theme_bw()
+```
+
+Box Scores{data-navmenu="Previous Matchups"}
+=======================================================================
+
+Column {data-width=250}
+-----------------------------------------------------------------------
+
+```{r, message =F, warning=F, include =F }
+game1<-box_scores(game_ids = 	22000076, box_score_types = "Traditional", result_types="player")
+denboxgame1<-(game1$dataBoxScore[[1]]) %>% 
+  filter(., slugTeam == "DEN") %>% 
+  summarize(., player = namePlayer, points= pts, rebounds = treb, assists = ast)
+
+```
+#### Game 1: Nuggets
+```{r}
+denboxgame1%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Column {data-width=250}
+-----------------------------------------------------------------------
+
+```{r, message =F, warning=F, include = F}
+game1<-box_scores(game_ids = 	22000076, box_score_types = "Traditional", result_types="player")
+phxboxgame1<-(game1$dataBoxScore[[1]]) %>% 
+  filter(., slugTeam == "PHX") %>% 
+  summarize(., player = namePlayer, points= pts, rebounds = treb, assists = ast)
+
+
+```
+
+#### Game 1: Suns
+```{r}
+phxboxgame1%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Shot Charts{data-navmenu="Previous Matchups"}
+=======================================================================
+
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+Game 1 - Loss
+```{r}
+game1Id<-22000076
+p <- ggplot(data = filter(denGames, idGame == game1Id),
+            aes(x = -locationX, y = locationY,
+                col = typeEvent))
+p + annotation_custom(court, -250, 250, -50, 420) +
+  geom_point(alpha = .5) +
+  scale_color_brewer("Zone", labels = c("Made", "Miss"), palette = "Set1") +
+  coord_fixed() +
+  scale_x_continuous("", breaks = NULL, limits = c(-250, 250)) +
+  scale_y_continuous("", breaks = NULL, limits = c(-50, 420))
+
+fieldgoalsg1<- nugsGames %>% 
+  filter(idGame ==game1Id)
+  
+
+
+
+
+```
+
+#### Game 1
+
+```{r}
+select(fieldgoalsg1, fgmTeam, fgaTeam, pctFGTeam) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+select(fieldgoalsg1, fg3mTeam, fg3aTeam, pctFG3Team) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+Game 2 - Win
+```{r}
+game2Id<-22000238
+p <- ggplot(data = filter(denGames, idGame == game2Id),
+            aes(x = -locationX, y = locationY,
+                col = typeEvent))
+p + annotation_custom(court, -250, 250, -50, 420) +
+  geom_point(alpha = .5) +
+  scale_color_brewer("Zone", labels = c("Made", "Miss"), palette = "Set1") +
+  coord_fixed() +
+  scale_x_continuous("", breaks = NULL, limits = c(-250, 250)) +
+  scale_y_continuous("", breaks = NULL, limits = c(-50, 420))
+
+fieldgoalsg2<- nugsGames %>% 
+  filter(idGame ==game2Id)
+
+
+```
+
+#### Game 2
+```{r}
+select(fieldgoalsg2, fgmTeam, fgaTeam, pctFGTeam) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+select(fieldgoalsg2, fg3mTeam, fg3aTeam, pctFG3Team) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+Game 3 - Win 
+```{r}
+game3Id<-22000248
+p <- ggplot(data = filter(denGames, idGame == game3Id),
+            aes(x = -locationX, y = locationY,
+                col = typeEvent))
+p + annotation_custom(court, -250, 250, -50, 420) +
+  geom_point(alpha = .5) +
+  scale_color_brewer("Zone", labels = c("Made", "Miss"), palette = "Set1") +
+  coord_fixed() +
+  scale_x_continuous("", breaks = NULL, limits = c(-250, 250)) +
+  scale_y_continuous("", breaks = NULL, limits = c(-50, 420))
+
+fieldgoalsg3<- nugsGames %>% 
+  filter(idGame ==game3Id)
+
+
+```
+
+#### Game 3
+```{r}
+select(fieldgoalsg3, fgmTeam, fgaTeam, pctFGTeam) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+select(fieldgoalsg3, fg3mTeam, fg3aTeam, pctFG3Team) %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Offensive Keys{data-navmenu="Keys"}
+=======================================================================
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+### *Keys to the Game:*
+#### Offensive Keys 
+- Share the ball
+- Hit the glass
+- Get Porter going
+- Balance the attack 
+
+```{r, warning= F, message = F, include = F}
+porterWins <- game_logs(seasons = 2021, results_types = "player") %>% 
+  filter(slugTeam == "DEN",namePlayer =="Michael Porter Jr.", outcomeGame == "W") %>% 
+  summarize(., points= round(mean(pts),2), assists = round(mean(ast),2), rebounds = round(mean(treb),2))
+
+porterLs <- game_logs(seasons = 2021, results_types = "player") %>% 
+  filter(namePlayer =="Michael Porter Jr.", outcomeGame == "L") %>% 
+  summarize(., points= round(mean(pts),2), assists = round(mean(ast),2), rebounds = round(mean(treb),2))
+```
+
+#### Assists vs Point scored
+
+```{r}
+
+p <- ggplot(data = nugsGames,
+            aes(x = ptsTeam, y = astTeam,
+                col = outcomeGame, text = paste('Result: ', outcomeGame, '\n',
+                             'Points: ', ptsTeam, '\n')))+
+  geom_point(alpha = .5)  +
+    labs(x = "Points", 
+       y = "Assists") +
+  theme_bw()
+
+ggplotly(p, tooltip ="Text")
+
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+Denver Averages vs Denver Wins 
+```{r}
+denAverages <- df_merge %>% 
+  filter(slugTeam=="DEN") %>% 
+  summarize(., points= round(mean(ptsTeam),2), assists = round(mean(astTeam),2), rebounds = round(mean(trebTeam),2),pctEFG = round(mean(pctEFG),2),pctOREB = round(mean(pctOREB),2), pctTOV=round(mean(pctTOVTeam),2), FTR = round(mean(ftr),2))
+
+denWins <- df_merge %>% 
+  filter(slugTeam=="DEN", outcomeGame =="W") %>% 
+  summarize(., points= round(mean(ptsTeam),2), assists = round(mean(astTeam),2), rebounds = round(mean(trebTeam),2),pctEFG = round(mean(pctEFG),2),pctOREB = round(mean(pctOREB),2), pctTOV=round(mean(pctTOVTeam),2), FTR = round(mean(ftr),2))
+
+
+denAverages%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+
+denWins%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+#### Offensive Rating and Offensive Rebound Percentage
+
+```{r}
+p <- ggplot(data = (df_merge %>% 
+                      filter(slugTeam =="DEN")),
+            aes(x = pctOREB, y = ortg,
+                col = outcomeGame, text = paste('Result: ', outcomeGame, '\n',
+                             'Points: ', ptsTeam, '\n')))+
+  geom_point(alpha = .5)  +
+    labs(x = "Offensive Rebound Percentage", 
+       y = "Offensive Rating") +
+  theme_bw()
+
+ggplotly(p, tooltip ="Text")
+```
+
+#### Michael Porter Jr when the Nuggets win vs when they lose
+```{r}
+porterWins %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+porterLs %>% 
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Defensive Keys{data-navmenu="Keys"}
+=======================================================================
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+#### Defensive Keys 
+- Contain Booker: Scored 30 or more points in 22 games, the Suns won 15 of those games
+- Shut down Bridges: most change in scoring between wins and losses among top scorers
+- Defend the perimeter: Suns shoot about 7% worse from 3 when they lose
+
+```{r, warning = F, message = F, include = F}
+bridgesWins <- game_logs(seasons = 2021, results_types = "player") %>% 
+  filter(slugTeam == "PHX", namePlayer =="Mikal Bridges", outcomeGame == "W") %>% 
+  summarize(., points= round(mean(pts),2), assists = round(mean(ast),2), rebounds = round(mean(treb),2))
+
+bridgesLs <- game_logs(seasons = 2021, results_types = "player") %>% 
+  filter(slugTeam == "PHX", namePlayer =="Mikal Bridges", outcomeGame == "L") %>% 
+  summarize(., points= round(mean(pts),2), assists = round(mean(ast),2), rebounds = round(mean(treb),2))
+
+booker <- game_logs(seasons = 2021, results_types = "player") %>% 
+  filter(slugTeam == "PHX", namePlayer =="Devin Booker", pts >= 30) 
+
+phxWins <- df_merge %>% 
+  filter(slugTeam == "PHX", outcomeGame == "W") %>% 
+  summarize(., fg3PCT = mean(pctFG3Team))
+
+phxLs <- df_merge %>% 
+  filter(slugTeam == "PHX", outcomeGame == "L") %>% 
+  summarize(., fg3PCT = mean(pctFG3Team))
+
+phxStatsplot <-df_merge %>% 
+  filter(slugTeam == "PHX")
+ 
+```
+
+```{r}
+p <- ggplot(data = phxStatsplot,
+            aes(x = ptsTeam, y = pctFG3Team,
+                col = outcomeGame, text = paste('Result: ', outcomeGame, '\n',
+                             'Points: ', ptsTeam, '\n')))+
+  geom_point(alpha = .5)  +
+    labs(x = "Points", 
+       y = "3 point percentage") +
+  theme_bw()
+
+ggplotly(p, tooltip ="Text")
+
+```
+
+Mikal Bridges when the Suns win vs when they lose
+
+```{r}
+
+bridgesWins%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+
+bridgesLs%>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Suns when Booker scores 30 or more
+
+```{r}
+p<-ggplot(data = booker,
+            aes(x = outcomeGame, fill = outcomeGame))
+p+geom_bar()+
+  scale_fill_manual(values=c("#636363", "#e6550d"))
+
+```
+
+
+
+
+
+
